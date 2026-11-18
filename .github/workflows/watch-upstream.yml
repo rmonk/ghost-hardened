@@ -1,0 +1,52 @@
+name: Watch upstream releases
+
+on:
+  schedule:
+    - cron: '51 8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Open PR for a new official Ghost image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current="$(tr -d '[:space:]' < UPSTREAM_VERSION)"
+          # The official image (docker.io/library/ghost) is published some time after a Ghost
+          # release, so follow its version tags rather than GitHub releases.
+          token="$(curl -fsS 'https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/ghost:pull' | jq -r .token)"
+          latest="$(curl -fsS -H "Authorization: Bearer $token" 'https://registry-1.docker.io/v2/library/ghost/tags/list?n=10000' \
+            | jq -r '.tags[]' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
+          echo "current=$current latest=$latest"
+          [ -n "$latest" ] || { echo "no version tags found"; exit 1; }
+          [ "$current" != "$latest" ] || { echo "up to date"; exit 0; }
+
+          branch="upstream/$latest"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "branch $branch already exists"; exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          echo "$latest" > UPSTREAM_VERSION
+          git commit -am "Bump upstream ghost to $latest"
+          git push origin "$branch"
+
+          gh pr create --base main --head "$branch" \
+            --title "Bump upstream ghost to $latest" \
+            --body "Upstream release notes: https://github.com/TryGhost/Ghost/releases/tag/v$latest
+
+          The build workflow has been dispatched on this branch (PRs opened with GITHUB_TOKEN do not trigger it on their own). If the build fails on an anchor, the official image changed how it starts: review overlay/Dockerfile. A new major version needs a look at Ghost's upgrade notes first. Merge when it is green; merging publishes \`$latest-hardened\` and \`latest-hardened\`."
+
+          # Events from GITHUB_TOKEN don't start workflows, but workflow_dispatch does.
+          gh workflow run build.yml --ref "$branch"
