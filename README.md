@@ -17,7 +17,7 @@ critical, 37 high) is in Debian 12 packages with no fix released, which the offi
 | Tooling | global npm/npx, corepack with pnpm/yarn shims, yarn v1 in `/opt` | removed (Ghost doesn't run them) |
 | `/var/lib/ghost/.pnpm-store` | the package manager's build cache (584 MB), including a Go binary | removed (node_modules keep their own copies) |
 | Debian packages | as built | `apt-get upgrade`, rebuilt weekly |
-| Health check | none | `node` requests `/ghost/api/admin/site/` (any answer below 400) |
+| Health check | none | `node` requests `/ghost/api/admin/site/` with the configured `url`'s host and scheme; must be 200 |
 
 The Ghost install, entrypoint, CMD, environment, config and content layout are unchanged. The build fails if the
 entrypoint loses its non-root branch (which seeds the content volume from `content.orig` without gosu) or if the

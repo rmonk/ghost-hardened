@@ -52,9 +52,11 @@ LABEL org.opencontainers.image.title="ghost (hardened)" \
       org.ghost-hardened.upstream-version="${UPSTREAM_VERSION}" \
       org.ghost-hardened.upstream-digest="${UPSTREAM_DIGEST}"
 
-# Upstream's image has no health check, and has no curl or wget. Any answer below 400 from the
-# admin site endpoint counts (Ghost may redirect a request for 127.0.0.1 to its configured url).
+# Upstream's image has no health check, and has no curl or wget, so node asks Ghost's admin site
+# endpoint for a 200. It sends the host and scheme of Ghost's configured `url` (as the reverse proxy
+# would), because Ghost redirects any other host to that url, and a redirect doesn't show that
+# Ghost is actually serving.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
-  CMD ["node", "-e", "require('http').get('http://127.0.0.1:2368/ghost/api/admin/site/', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"]
+  CMD ["node", "-e", "const u = new URL(process.env.url || 'http://localhost:2368'); require('http').get({ host: '127.0.0.1', port: 2368, path: '/ghost/api/admin/site/', headers: { Host: u.host, 'X-Forwarded-Proto': u.protocol.slice(0, -1) } }, r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
 
 USER ${GHOST_UID}:${GHOST_GID}
