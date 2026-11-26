@@ -1,3 +1,5 @@
+# check=skip=InvalidDefaultArgInFrom
+
 # Hardened Ghost image: upstream's official image for the same release (pinned by digest), with
 # what Ghost never runs at runtime removed, current Debian packages, and a fixed non-root uid as
 # the default user. Ghost itself (/var/lib/ghost/versions/<version>), the entrypoint, CMD, env,
@@ -12,6 +14,9 @@
 #
 # Build args come from build/build-args (scripts/prepare.sh).
 
+# No default on purpose: the base must be the digest-pinned ref from build/build-args, and a
+# build without it should fail rather than pull an unpinned image. The `check=skip` directive on
+# line 1 silences BuildKit's InvalidDefaultArgInFrom warning about exactly this.
 ARG UPSTREAM_IMAGE
 FROM ${UPSTREAM_IMAGE}
 
